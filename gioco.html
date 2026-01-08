@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>Sub contro la plastica</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  body {
+    margin: 0;
+    background: #003f5c;
+    text-align: center;
+    color: white;
+    font-family: Arial, sans-serif;
+  }
+  canvas {
+    background: linear-gradient(#0077b6, #001d3d);
+    display: block;
+    margin: auto;
+    border: 2px solid white;
+    touch-action: none;
+  }
+  .controls {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin: 10px;
+  }
+  button {
+    padding: 15px 20px;
+    font-size: 18px;
+    border-radius: 10px;
+    border: none;
+    background: #00b4d8;
+    color: white;
+  }
+  #overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    z-index: 10;
+    padding: 20px;
+  }
+</style>
+</head>
+<body>
+
+<div id="overlay">
+  <h2>🤿 Missione Subacquea</h2>
+  <p>
+    Sei un sub impegnato a proteggere il mare 🌊<br><br>
+    Il tuo obiettivo è <b>raccogliere i 5 sacchetti di plastica</b><br>
+    prima che finisca l'ossigeno.<br>
+    <b>Ossigeno:</b> rappresentato dalla barra in alto; diminuisce lentamente.<br>
+    Se l’ossigeno finisce o tocchi uno squalo, il gioco termina!
+  </p>
+  <button onclick="startGame()">INIZIA</button>
+</div>
+
+<h3>🫧 Ossigeno</h3>
+<canvas id="game" width="480" height="640"></canvas>
+
+<div class="controls">
+  <button ontouchstart="keys.ArrowLeft=true" ontouchend="keys.ArrowLeft=false">⬅️</button>
+  <button ontouchstart="keys.ArrowUp=true" ontouchend="keys.ArrowUp=false">⬆️</button>
+  <button ontouchstart="keys.ArrowDown=true" ontouchend="keys.ArrowDown=false">⬇️</button>
+  <button ontouchstart="keys.ArrowRight=true" ontouchend="keys.ArrowRight=false">➡️</button>
+</div>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+const overlay = document.getElementById("overlay");
+
+let gameStarted = false;
+let gameOver = false;
+
+const player = { x: 50, y: 300, size: 40, speed: 4 };
+let plasticBags = [];
+let fishes = [];
+let sharks = [];
+let collectedCount = 0;
+
+let oxygen = 180;
+const maxOxygen = 180;
+const keys = {};
+
+document.addEventListener("keydown", e => keys[e.key] = true);
+document.addEventListener("keyup", e => keys[e.key] = false);
+
+function initGame() {
+  player.x = 50;
+  player.y = 300;
+  collectedCount = 0;
+  oxygen = maxOxygen;
+  gameOver = false;
+
+  plasticBags = [];
+  for (let i = 0; i < 5; i++) {
+    plasticBags.push({
+      x: Math.random() * (canvas.width - 30),
+      y: Math.random() * (canvas.height - 30),
+      collected: false
+    });
+  }
+
+  fishes = [];
+  for (let i = 0; i < 8; i++) {
+    fishes.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      speed: Math.random() * 1.2 + 0.5,
+      direction: Math.random() < 0.5 ? -1 : 1
+    });
+  }
+
+  sharks = [];
+  for (let i = 0; i < 3; i++) {
+    sharks.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * (canvas.height - 40),
+      width: 50,
+      height: 25,
+      speed: Math.random() * 2 + 1,
+      direction: Math.random() < 0.5 ? -1 : 1
+    });
+  }
+}
+
+function startGame() {
+  overlay.style.display = "none";
+  gameStarted = true;
+  initGame();
+}
+
+setInterval(() => {
+  if (gameStarted && !gameOver) {
+    oxygen--;
+    if (oxygen <= 0) gameOver = true;
+  }
+}, 1000);
+
+function movePlayer() {
+  if (keys.ArrowUp) player.y -= player.speed;
+  if (keys.ArrowDown) player.y += player.speed;
+  if (keys.ArrowLeft) player.x -= player.speed;
+  if (keys.ArrowRight) player.x += player.speed;
+
+  player.x = Math.max(0, Math.min(canvas.width - player.size, player.x));
+  player.y = Math.max(0, Math.min(canvas.height - player.size, player.y));
+}
+
+// --- Disegno sub stilizzato ---
+function drawPlayer() {
+  ctx.fillStyle = "yellow"; // casco
+  ctx.beginPath();
+  ctx.arc(player.x + player.size/2, player.y + player.size/3, player.size/4, 0, Math.PI*2);
+  ctx.fill();
+
+  ctx.fillStyle = "blue"; // corpo
+  ctx.fillRect(player.x + player.size/3, player.y + player.size/3, player.size/3, player.size/2);
+
+  ctx.fillStyle = "orange"; // pinne
+  ctx.beginPath();
+  ctx.moveTo(player.x + player.size/3, player.y + player.size*5/6);
+  ctx.lineTo(player.x + player.size/2, player.y + player.size);
+  ctx.lineTo(player.x + player.size*2/3, player.y + player.size*5/6);
+  ctx.closePath();
+  ctx.fill();
+}
+
+// --- Disegno sacchetti di plastica stilizzati ---
+function drawPlastic() {
+  plasticBags.forEach(b => {
+    if (!b.collected) {
+      ctx.fillStyle = "white";
+      ctx.beginPath();
+      ctx.moveTo(b.x, b.y + 20);
+      ctx.lineTo(b.x, b.y + 10);
+      ctx.quadraticCurveTo(b.x + 7.5, b.y, b.x + 15, b.y + 10);
+      ctx.lineTo(b.x + 15, b.y + 20);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.strokeStyle = "lightgray"; // maniglia
+      ctx.beginPath();
+      ctx.moveTo(b.x + 4, b.y + 10);
+      ctx.quadraticCurveTo(b.x + 7.5, b.y + 2, b.x + 11, b.y + 10);
+      ctx.stroke();
+    }
+  });
+}
+
+// --- Disegno pesci stilizzati ---
+function moveAndDrawFishes() {
+  fishes.forEach(f => {
+    f.x += f.speed * f.direction;
+    if (f.x > canvas.width + 20) f.x = -20;
+    if (f.x < -20) f.x = canvas.width + 20;
+
+    ctx.fillStyle = "orange"; // corpo
+    ctx.beginPath();
+    ctx.ellipse(f.x, f.y, 12, 6, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.beginPath(); // coda
+    ctx.moveTo(f.x-12, f.y);
+    ctx.lineTo(f.x-18, f.y-5);
+    ctx.lineTo(f.x-18, f.y+5);
+    ctx.closePath();
+    ctx.fill();
+  });
+}
+
+// --- Disegno squali stilizzati ---
+function moveAndDrawSharks() {
+  sharks.forEach(s => {
+    s.x += s.speed * s.direction;
+    if (s.x > canvas.width + s.width) s.x = -s.width;
+    if (s.x < -s.width) s.x = canvas.width + s.width;
+
+    ctx.fillStyle = "gray"; // corpo
+    ctx.fillRect(s.x, s.y, s.width, s.height);
+
+    ctx.fillStyle = "darkgray"; // pinna dorsale
+    ctx.beginPath();
+    ctx.moveTo(s.x + s.width/2, s.y);
+    ctx.lineTo(s.x + s.width/2 - 10, s.y - 15);
+    ctx.lineTo(s.x + s.width/2 + 10, s.y - 15);
+    ctx.closePath();
+    ctx.fill();
+  });
+}
+
+// --- Collisioni ---
+function checkCollision() {
+  plasticBags.forEach(b => {
+    if (!b.collected &&
+        player.x < b.x + 15 &&
+        player.x + player.size > b.x &&
+        player.y < b.y + 20 &&
+        player.y + player.size > b.y) {
+      b.collected = true;
+      collectedCount++;
+      if (collectedCount === 5) gameOver = true;
+    }
+  });
+
+  sharks.forEach(s => {
+    if (player.x < s.x + s.width &&
+        player.x + player.size > s.x &&
+        player.y < s.y + s.height &&
+        player.y + player.size > s.y) {
+      gameOver = true;
+    }
+  });
+}
+
+// --- Ossigeno ---
+function drawOxygenBar() {
+  const barWidth = 250;
+  const barHeight = 20;
+  const x = (canvas.width - barWidth)/2;
+  const y = 10;
+
+  ctx.strokeStyle = "white";
+  ctx.strokeRect(x, y, barWidth, barHeight);
+
+  ctx.fillStyle = "cyan";
+  ctx.fillRect(x, y, (oxygen / maxOxygen) * barWidth, barHeight);
+}
+
+// --- UI e messaggi ---
+function drawUI() {
+  ctx.fillStyle = "white";
+  ctx.font = "18px Arial";
+  ctx.fillText(`Plastica: ${collectedCount}/5`, 10, 30);
+
+  drawOxygenBar();
+
+  if (gameOver) {
+    ctx.fillStyle = collectedCount === 5 ? "lime" : "red";
+    ctx.font = "26px Arial";
+    ctx.fillText(
+      collectedCount === 5 ? "MISSIONE COMPLETATA 🌍" : "GAME OVER 🦈",
+      60,
+      canvas.height/2 - 20
+    );
+    ctx.font = "20px Arial";
+    ctx.fillText("Clicca Rigioca", 120, canvas.height/2 + 20);
+  }
+}
+
+// --- Rigioca ---
+canvas.addEventListener("click", () => {
+  if (gameOver) initGame();
+});
+
+// --- Loop principale ---
+function gameLoop() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (gameStarted && !gameOver) {
+    moveAndDrawFishes();
+    moveAndDrawSharks();
+    movePlayer();
+    drawPlastic();
+    checkCollision();
+  }
+
+  if (gameStarted) {
+    drawPlayer();
+    drawUI();
+  }
+
+  requestAnimationFrame(gameLoop);
+}
+
+gameLoop();
+</script>
+
+</body>
+</html>
+
